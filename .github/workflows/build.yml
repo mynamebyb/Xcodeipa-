@@ -1,0 +1,72 @@
+name: Auto Build IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: 编译iOS应用
+      run: |
+        # 创建源代码
+        cat > main.m << 'EOF'
+#import <UIKit/UIKit.h>
+@interface AppDelegate : UIResponder <UIApplicationDelegate>
+@property (strong, nonatomic) UIWindow *window;
+@end
+@implementation AppDelegate
+- (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(id)opt {
+    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.window.rootViewController = [UIViewController new];
+    self.window.rootViewController.view.backgroundColor = [UIColor systemBlueColor];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(0,0,300,100)];
+    label.center = self.window.center;
+    label.text = @"✨ 百宝箱 编译成功！";
+    label.textAlignment = NSTextAlignmentCenter;
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont boldSystemFontOfSize:24];
+    [self.window.rootViewController.view addSubview:label];
+    [self.window makeKeyAndVisible];
+    return YES;
+}
+@end
+int main() {
+    UIApplicationMain(0, nil, nil, @"AppDelegate");
+}
+EOF
+        
+        cat > Info.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key><string>✨百宝箱</string>
+    <key>CFBundleIdentifier</key><string>com.box.tool</string>
+    <key>MinimumOSVersion</key><string>14.0</string>
+</dict>
+</plist>
+EOF
+        
+        # 编译
+        xcrun clang main.m -o ToolBox 
+          -framework UIKit -framework Foundation
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path)
+          -arch arm64 -miphoneos-version-min=14.0
+        
+        # 打包IPA
+        mkdir -p Payload/ToolBox.app
+        mv ToolBox Payload/ToolBox.app/
+        cp Info.plist Payload/ToolBox.app/
+        echo -n "APPL????" > Payload/ToolBox.app/PkgInfo
+        zip -r ToolBox.ipa Payload/
+        
+    - name: 上传IPA
+      uses: actions/upload-artifact@v3
+      with:
+        name: 百宝箱IPA
+        path: ToolBox.ipa
