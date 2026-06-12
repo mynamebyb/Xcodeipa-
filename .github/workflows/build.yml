@@ -36,7 +36,7 @@ jobs:
           zip -r TestApp.ipa Payload/
       
       - name: Upload IPA
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Test-IPA
+          name: Test‑IPA
           path: TestApp.ipa
