@@ -1,4 +1,4 @@
-name: Build IPA
+name: 百宝箱IPA自动编译
 
 on:
   push:
@@ -9,34 +9,119 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
-      - name: Build iOS App
+      - name: 🔨 编译真正可运行的iOS应用
         run: |
-          echo "Compiling..."
+          echo "开始编译..."
           
-          cat > hello.c << 'EOF'
-          #include <stdio.h>
-          int main() { printf("Hello World\n"); return 0; }
-          EOF
+          # 1. 创建完整的iOS应用源代码
+          cat > main.m << 'CODE'
+          #import <UIKit/UIKit.h>
+          #import <objc/runtime.h>
+
+          @interface AppDelegate : UIResponder <UIApplicationDelegate>
+          @property (strong, nonatomic) UIWindow *window;
+          @end
+
+          @implementation AppDelegate
+          - (BOOL)application:(UIApplication *)application 
+              didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+              
+              self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+              self.window.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.15 alpha:1.0];
+              
+              // 主视图控制器
+              UIViewController *vc = [UIViewController new];
+              vc.title = @"✨ 百宝箱";
+              
+              // 标题
+              UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 100, 350, 50)];
+              titleLabel.center = CGPointMake(self.window.center.x, 150);
+              titleLabel.text = @"✨ 多功能百宝箱";
+              titleLabel.textColor = [UIColor whiteColor];
+              titleLabel.font = [UIFont boldSystemFontOfSize:28];
+              titleLabel.textAlignment = NSTextAlignmentCenter;
+              [vc.view addSubview:titleLabel];
+              
+              // 功能按钮
+              NSArray *features = @[@"🔐 加解密", @"🖼️ 头像库", @"🌐 网络工具", @"📱 系统信息", @"📁 文件管理"];
+              for(int i=0; i<5; i++) {
+                  UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+                  btn.frame = CGRectMake(30, 220 + i*70, 300, 60);
+                  btn.center = CGPointMake(self.window.center.x, 220 + i*70);
+                  [btn setTitle:features[i] forState:UIControlStateNormal];
+                  [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                  btn.titleLabel.font = [UIFont boldSystemFontOfSize:20];
+                  btn.backgroundColor = [UIColor colorWithRed:0.2 green:0.4 blue:0.8 alpha:0.8];
+                  btn.layer.cornerRadius = 15;
+                  btn.tag = i;
+                  [btn addTarget:self action:@selector(btnClick:) 
+                        forControlEvents:UIControlEventTouchUpInside];
+                  [vc.view addSubview:btn];
+              }
+              
+              self.window.rootViewController = vc;
+              [self.window makeKeyAndVisible];
+              return YES;
+          }
+          - (void)btnClick:(UIButton*)sender {
+              UIAlertController *alert = [UIAlertController 
+                  alertControllerWithTitle:@"功能开发中" 
+                  message:@"后续版本开放更多功能"
+                  preferredStyle:UIAlertControllerStyleAlert];
+              [alert addAction:[UIAlertAction actionWithTitle:@"确定" 
+                  style:UIAlertActionStyleDefault handler:nil]];
+              [self.window.rootViewController presentViewController:alert animated:YES completion:nil];
+          }
+          @end
+
+          int main(int argc, char * argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, @"AppDelegate");
+              }
+          }
+          CODE
           
-          mkdir -p Payload/TestApp.app
-          echo "APPL????" > Payload/TestApp.app/PkgInfo
-          
-          cat > Payload/TestApp.app/Info.plist << 'PLIST'
+          # 2. 创建Info.plist
+          cat > Info.plist << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-          <key>CFBundleDisplayName</key><string>测试应用</string>
-          <key>CFBundleIdentifier</key><string>com.test.app</string>
-          <key>MinimumOSVersion</key><string>14.0</string>
-          </dict></plist>
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDisplayName</key><string>✨百宝箱</string>
+              <key>CFBundleExecutable</key><string>ToolBox</string>
+              <key>CFBundleIdentifier</key><string>com.toolbox.app</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>MinimumOSVersion</key><string>14.0</string>
+              <key>CFBundleShortVersionString</key><string>1.0.0</string>
+              <key>UIStatusBarStyle</key><string>UIStatusBarStyleLightContent</string>
+          </dict>
+          </plist>
           PLIST
           
-          zip -r TestApp.ipa Payload/
+          # 3. 编译ARM64二进制（真正可执行！）
+          xcrun clang main.m -o ToolBox \
+            -framework UIKit -framework Foundation \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -arch arm64 -miphoneos-version-min=14.0 \
+            -ObjC -fobjc-arc
+          
+          echo "编译完成！"
+          ls -lh ToolBox
+          
+          # 4. 打包成完整IPA
+          mkdir -p Payload/ToolBox.app
+          mv ToolBox Payload/ToolBox.app/
+          cp Info.plist Payload/ToolBox.app/
+          echo -n "APPL????" > Payload/ToolBox.app/PkgInfo
+          zip -r 百宝箱_完整可运行版.ipa Payload/
+          
+          echo "IPA打包完成！"
+          ls -lh *.ipa
       
-      - name: Upload IPA
+      - name: 📤 上传IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Test‑IPA
-          path: TestApp.ipa
+          name: 百宝箱_完整可运行版
+          path: 百宝箱_完整可运行版.ipa
